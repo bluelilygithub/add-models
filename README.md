@@ -1,6 +1,6 @@
-# LLM Connection Tester (Gemini Only)
+# Gemini Auth Test
 
-A minimal Node.js app to test API key authentication with Google Gemini LLM. Designed for Railway deployment.
+A minimal Node.js app to test Google Gemini API key authentication. Designed for Railway deployment.
 
 ## Setup & Deployment (Railway)
 
@@ -28,7 +28,3 @@ A minimal Node.js app to test API key authentication with Google Gemini LLM. Des
 
 - `success: true` means the API key is valid and Railway can connect.
 - `success: false` with an error means the key is missing or invalid, or there’s a network issue.
-
-## Notes
-- No local testing is required—just deploy to Railway and use the `/test` endpoint.
-- You can add other LLMs by editing `index.js` if needed.
