@@ -4,38 +4,7 @@ const fetch = require('node-fetch');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Helper functions to test each LLM
-async function testAnthropic(apiKey) {
-  if (!apiKey) return { success: false, error: 'No API key' };
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/models', {
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-    });
-    if (res.ok) return { success: true };
-    return { success: false, error: `Status ${res.status}` };
-  } catch (e) {
-    return { success: false, error: e.message };
-  }
-}
-
-async function testOpenAI(apiKey) {
-  if (!apiKey) return { success: false, error: 'No API key' };
-  try {
-    const res = await fetch('https://api.openai.com/v1/models', {
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-      },
-    });
-    if (res.ok) return { success: true };
-    return { success: false, error: `Status ${res.status}` };
-  } catch (e) {
-    return { success: false, error: e.message };
-  }
-}
-
+// Helper function to test Gemini
 async function testGemini(apiKey) {
   if (!apiKey) return { success: false, error: 'No API key' };
   try {
@@ -49,20 +18,14 @@ async function testGemini(apiKey) {
 }
 
 app.get('/test', async (req, res) => {
-  const results = await Promise.all([
-    testAnthropic(process.env.ANTHROPIC_API_KEY),
-    testOpenAI(process.env.OPENAI_API_KEY),
-    testGemini(process.env.GEMINI_API_KEY),
-  ]);
+  const geminiResult = await testGemini(process.env.GEMINI_API_KEY);
   res.json({
-    anthropic: results[0],
-    openai: results[1],
-    gemini: results[2],
+    gemini: geminiResult,
   });
 });
 
 app.get('/', (req, res) => {
-  res.send('LLM Connection Tester is running. Use /test to check LLM API connections.');
+  res.send('LLM Connection Tester is running. Use /test to check Gemini API connection.');
 });
 
 app.listen(PORT, () => {
