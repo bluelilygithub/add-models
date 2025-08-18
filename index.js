@@ -44,14 +44,38 @@ app.get('/test', async (req, res) => {
     }
   }
 
+  // Claude (Anthropic) test
+  const claudeKey = process.env.CLAUDE_API_KEY;
+  let claudeResult;
+  if (!claudeKey) {
+    claudeResult = { success: false, error: 'No API key' };
+  } else {
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/models', {
+        headers: {
+          'x-api-key': claudeKey,
+          'anthropic-version': '2023-06-01',
+        },
+      });
+      if (response.ok) {
+        claudeResult = { success: true };
+      } else {
+        claudeResult = { success: false, error: `Status ${response.status}` };
+      }
+    } catch (e) {
+      claudeResult = { success: false, error: e.message };
+    }
+  }
+
   res.json({
     gemini: geminiResult,
     openai: openaiResult,
+    claude: claudeResult,
   });
 });
 
 app.get('/', (req, res) => {
-  res.send('Gemini & OpenAI Auth Test: use /test');
+  res.send('Gemini, OpenAI & Claude Auth Test: use /test');
 });
 
 app.listen(PORT, () => {
