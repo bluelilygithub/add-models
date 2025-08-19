@@ -47,33 +47,49 @@ app.get('/test', async (req, res) => {
     }
   }
 
-  // Claude (Anthropic) test
+  // Claude (Anthropic) test - try all known models
   const claudeKey = process.env.CLAUDE_API_KEY;
-  let claudeResult;
+  const claudeModels = [
+    'claude-sonnet-4-20250514',
+    'claude-opus-4',
+    'claude-3-5-sonnet-20241022',
+    'claude-3-5-haiku-20241022'
+  ];
+  let claudeResults = [];
   if (!claudeKey) {
-    claudeResult = { success: false, error: 'No API key' };
+    claudeResults = [{ model: null, success: false, error: 'No API key' }];
   } else {
-    try {
-      const response = await fetch('https://api.anthropic.com/v1/models', {
-        headers: {
-          'x-api-key': claudeKey,
-          'anthropic-version': '2023-06-01',
-        },
-      });
-      if (response.ok) {
-        claudeResult = { success: true };
-      } else {
-        claudeResult = { success: false, error: `Status ${response.status}` };
+    for (const model of claudeModels) {
+      try {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': claudeKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model,
+            max_tokens: 10,
+            messages: [{ role: 'user', content: 'Hi' }],
+          })
+        });
+        if (response.ok) {
+          claudeResults.push({ model, success: true });
+        } else {
+          const errorData = await response.json();
+          claudeResults.push({ model, success: false, error: `Status ${response.status}: ${JSON.stringify(errorData)}` });
+        }
+      } catch (e) {
+        claudeResults.push({ model, success: false, error: e.message });
       }
-    } catch (e) {
-      claudeResult = { success: false, error: e.message };
     }
   }
 
   res.json({
     gemini: geminiResult,
     openai: openaiResult,
-    claude: claudeResult,
+    claude: claudeResults,
   });
 });
 
