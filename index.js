@@ -228,12 +228,12 @@ app.get('/models', (req, res) => {
   res.send(`
     <h2>Test LLM Models</h2>
     <form method="POST" action="/test-models">
-      <label>Gemini Models (comma-separated):</label><br>
-      <input type="text" name="gemini_models" style="width: 400px;" value="models/gemini-1.5-pro-002,models/gemini-pro"><br><br>
-      <label>OpenAI Models (comma-separated):</label><br>
-      <input type="text" name="openai_models" style="width: 400px;" value="gpt-4o,gpt-4-turbo,gpt-4,gpt-3.5-turbo"><br><br>
-      <label>Claude Models (comma-separated):</label><br>
-      <input type="text" name="claude_models" style="width: 400px;" value="claude-sonnet-4-20250514,claude-opus-4,claude-3-5-sonnet-20241022,claude-3-5-haiku-20241022"><br><br>
+      <label>Gemini Models (one per line):</label><br>
+      <textarea name="gemini_models" rows="3" style="width: 400px;">models/gemini-1.5-pro-002\nmodels/gemini-pro</textarea><br><br>
+      <label>OpenAI Models (one per line):</label><br>
+      <textarea name="openai_models" rows="4" style="width: 400px;">gpt-4o\ngpt-4-turbo\ngpt-4\ngpt-3.5-turbo</textarea><br><br>
+      <label>Claude Models (one per line):</label><br>
+      <textarea name="claude_models" rows="4" style="width: 400px;">claude-sonnet-4-20250514\nclaude-opus-4\nclaude-3-5-sonnet-20241022\nclaude-3-5-haiku-20241022</textarea><br><br>
       <button type="submit">Test Models</button>
     </form>
   `);
@@ -243,9 +243,11 @@ app.post('/test-models', async (req, res) => {
   const geminiKey = process.env.GEMINI_API_KEY;
   const openaiKey = process.env.OPENAI_API_KEY;
   const claudeKey = process.env.CLAUDE_API_KEY;
-  const geminiModels = req.body.gemini_models.split(',').map(m => m.trim()).filter(Boolean);
-  const openaiModels = req.body.openai_models.split(',').map(m => m.trim()).filter(Boolean);
-  const claudeModels = req.body.claude_models.split(',').map(m => m.trim()).filter(Boolean);
+  // Split on newlines or commas, trim, and filter out empty
+  const splitModels = str => str.split(/\r?\n|,/).map(m => m.trim()).filter(Boolean);
+  const geminiModels = splitModels(req.body.gemini_models);
+  const openaiModels = splitModels(req.body.openai_models);
+  const claudeModels = splitModels(req.body.claude_models);
 
   // Test Gemini models
   let geminiResults = [];
