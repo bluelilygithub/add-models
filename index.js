@@ -89,26 +89,37 @@ app.get('/', (req, res) => {
 
 app.post('/ask', async (req, res) => {
   const question = req.body.question;
-  // Gemini
+
+  // Gemini: fetch available models, use the first
   let geminiResponse = '';
+  let geminiModel = '';
   try {
     const geminiKey = process.env.GEMINI_API_KEY;
-    const geminiApi = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=' + geminiKey;
-    const geminiRes = await fetch(geminiApi, {
+    let modelList = await fetch(`https://generativelanguage.googleapis.com/v1/models?key=${geminiKey}`);
+    let modelData = await modelList.json();
+    geminiModel = modelData.models?.[0]?.name || 'models/gemini-pro';
+    // Try v1 first, fallback to v1beta if needed
+    let geminiApi = `https://generativelanguage.googleapis.com/v1beta/${geminiModel}:generateContent?key=${geminiKey}`;
+    let geminiRes = await fetch(geminiApi, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: question }] }]
       })
     });
-    const geminiData = await geminiRes.json();
-    geminiResponse = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || JSON.stringify(geminiData);
+    let geminiData = await geminiRes.json();
+    if (geminiData.candidates?.[0]?.content?.parts?.[0]?.text) {
+      geminiResponse = geminiData.candidates[0].content.parts[0].text;
+    } else {
+      geminiResponse = JSON.stringify(geminiData);
+    }
   } catch (e) {
     geminiResponse = 'Error: ' + e.message;
   }
 
   // OpenAI
   let openaiResponse = '';
+  let openaiModel = 'gpt-3.5-turbo';
   try {
     const openaiKey = process.env.OPENAI_API_KEY;
     const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -118,21 +129,34 @@ app.post('/ask', async (req, res) => {
         'Authorization': `Bearer ${openaiKey}`,
       },
       body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
+        model: openaiModel,
         messages: [{ role: 'user', content: question }],
       })
     });
     const openaiData = await openaiRes.json();
-    openaiResponse = openaiData.choices?.[0]?.message?.content || JSON.stringify(openaiData);
+    if (openaiData.choices?.[0]?.message?.content) {
+      openaiResponse = openaiData.choices[0].message.content;
+    } else {
+      openaiResponse = JSON.stringify(openaiData);
+    }
   } catch (e) {
     openaiResponse = 'Error: ' + e.message;
   }
 
-  // Claude
+  // Claude: fetch available models, use the first
   let claudeResponse = '';
+  let claudeModel = '';
   try {
     const claudeKey = process.env.CLAUDE_API_KEY;
-    const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+    let modelList = await fetch('https://api.anthropic.com/v1/models', {
+      headers: {
+        'x-api-key': claudeKey,
+        'anthropic-version': '2023-06-01',
+      },
+    });
+    let modelData = await modelList.json();
+    claudeModel = modelData.models?.[0]?.id || 'claude-3-opus-20240229';
+    let claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -140,13 +164,17 @@ app.post('/ask', async (req, res) => {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-3-opus-20240229',
+        model: claudeModel,
         max_tokens: 256,
         messages: [{ role: 'user', content: question }],
       })
     });
-    const claudeData = await claudeRes.json();
-    claudeResponse = claudeData.content?.[0]?.text || JSON.stringify(claudeData);
+    let claudeData = await claudeRes.json();
+    if (claudeData.content?.[0]?.text) {
+      claudeResponse = claudeData.content[0].text;
+    } else {
+      claudeResponse = JSON.stringify(claudeData);
+    }
   } catch (e) {
     claudeResponse = 'Error: ' + e.message;
   }
@@ -154,11 +182,11 @@ app.post('/ask', async (req, res) => {
   res.send(`
     <h2>Question:</h2>
     <div>${question}</div>
-    <h2>Gemini Response:</h2>
+    <h2>Gemini Response (Model: ${geminiModel}):</h2>
     <pre>${geminiResponse}</pre>
-    <h2>OpenAI Response:</h2>
+    <h2>OpenAI Response (Model: ${openaiModel}):</h2>
     <pre>${openaiResponse}</pre>
-    <h2>Claude Response:</h2>
+    <h2>Claude Response (Model: ${claudeModel}):</h2>
     <pre>${claudeResponse}</pre>
     <br><a href="/">Ask another question</a>
   `);
