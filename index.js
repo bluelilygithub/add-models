@@ -159,34 +159,23 @@ app.post('/ask', async (req, res) => {
     openaiResponse = 'Error: ' + e.message;
   }
 
-  // Claude: try preferred models in order, then fallback to first available
+  // Claude: try all known models in order, use the first that works
   let claudeResponse = '';
   let claudeModel = '';
   let claudeTestedModels = [];
   let claudeErrors = [];
-  try {
-    const claudeKey = process.env.CLAUDE_API_KEY;
-    let modelList = await fetch('https://api.anthropic.com/v1/models', {
-      headers: {
-        'x-api-key': claudeKey,
-        'anthropic-version': '2023-06-01',
-      },
-    });
-    let modelData = await modelList.json();
-    let availableModels = modelData.models?.map(m => m.id) || [];
-    // Preferred models in order
-    const preferredModels = [
-      'claude-sonnet-4-20250514',
-      'claude-opus-4',
-      'claude-3-5-sonnet-20241022',
-      'claude-3-5-haiku-20241022'
-    ];
-    // Try preferred models first, then any available
-    let modelsToTry = preferredModels.filter(m => availableModels.includes(m));
-    if (modelsToTry.length === 0 && availableModels.length > 0) {
-      modelsToTry = [availableModels[0]];
-    }
-    for (let model of modelsToTry) {
+  const claudeKey = process.env.CLAUDE_API_KEY;
+  const claudeModels = [
+    'claude-sonnet-4-20250514',
+    'claude-opus-4',
+    'claude-3-5-sonnet-20241022',
+    'claude-3-5-haiku-20241022'
+  ];
+  if (!claudeKey) {
+    claudeResponse = 'No API key';
+    claudeModel = 'None';
+  } else {
+    for (const model of claudeModels) {
       claudeTestedModels.push(model);
       try {
         let claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
@@ -218,9 +207,6 @@ app.post('/ask', async (req, res) => {
       claudeResponse = 'All models failed. Errors: ' + JSON.stringify(claudeErrors);
       claudeModel = 'None worked';
     }
-  } catch (e) {
-    claudeResponse = 'Error: ' + e.message;
-    claudeModel = 'Error fetching models';
   }
 
   res.send(`
