@@ -143,9 +143,11 @@ app.post('/ask', async (req, res) => {
     openaiResponse = 'Error: ' + e.message;
   }
 
-  // Claude: fetch available models, use the first
+  // Claude: fetch available models, try each until one works
   let claudeResponse = '';
   let claudeModel = '';
+  let claudeTestedModels = [];
+  let claudeErrors = [];
   try {
     const claudeKey = process.env.CLAUDE_API_KEY;
     let modelList = await fetch('https://api.anthropic.com/v1/models', {
@@ -155,28 +157,42 @@ app.post('/ask', async (req, res) => {
       },
     });
     let modelData = await modelList.json();
-    claudeModel = modelData.models?.[0]?.id || 'claude-3-opus-20240229';
-    let claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': claudeKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: claudeModel,
-        max_tokens: 256,
-        messages: [{ role: 'user', content: question }],
-      })
-    });
-    let claudeData = await claudeRes.json();
-    if (claudeData.content?.[0]?.text) {
-      claudeResponse = claudeData.content[0].text;
-    } else {
-      claudeResponse = JSON.stringify(claudeData);
+    let models = modelData.models?.map(m => m.id) || ['claude-3-opus-20240229'];
+    for (let model of models) {
+      claudeTestedModels.push(model);
+      try {
+        let claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': claudeKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model,
+            max_tokens: 256,
+            messages: [{ role: 'user', content: question }],
+          })
+        });
+        let claudeData = await claudeRes.json();
+        if (claudeData.content?.[0]?.text) {
+          claudeResponse = claudeData.content[0].text;
+          claudeModel = model;
+          break;
+        } else {
+          claudeErrors.push({model, error: JSON.stringify(claudeData)});
+        }
+      } catch (e) {
+        claudeErrors.push({model, error: e.message});
+      }
+    }
+    if (!claudeResponse) {
+      claudeResponse = 'All models failed. Errors: ' + JSON.stringify(claudeErrors);
+      claudeModel = 'None worked';
     }
   } catch (e) {
     claudeResponse = 'Error: ' + e.message;
+    claudeModel = 'Error fetching models';
   }
 
   res.send(`
@@ -188,6 +204,8 @@ app.post('/ask', async (req, res) => {
     <pre>${openaiResponse}</pre>
     <h2>Claude Response (Model: ${claudeModel}):</h2>
     <pre>${claudeResponse}</pre>
+    <h3>Claude Models Tested:</h3>
+    <pre>${JSON.stringify(claudeTestedModels, null, 2)}</pre>
     <br><a href="/">Ask another question</a>
   `);
 });
