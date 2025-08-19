@@ -143,7 +143,7 @@ app.post('/ask', async (req, res) => {
     openaiResponse = 'Error: ' + e.message;
   }
 
-  // Claude: fetch available models, try each until one works
+  // Claude: try preferred models in order, then fallback to first available
   let claudeResponse = '';
   let claudeModel = '';
   let claudeTestedModels = [];
@@ -157,8 +157,20 @@ app.post('/ask', async (req, res) => {
       },
     });
     let modelData = await modelList.json();
-    let models = modelData.models?.map(m => m.id) || ['claude-3-opus-20240229'];
-    for (let model of models) {
+    let availableModels = modelData.models?.map(m => m.id) || [];
+    // Preferred models in order
+    const preferredModels = [
+      'claude-sonnet-4-20250514',
+      'claude-opus-4',
+      'claude-3-5-sonnet-20241022',
+      'claude-3-5-haiku-20241022'
+    ];
+    // Try preferred models first, then any available
+    let modelsToTry = preferredModels.filter(m => availableModels.includes(m));
+    if (modelsToTry.length === 0 && availableModels.length > 0) {
+      modelsToTry = [availableModels[0]];
+    }
+    for (let model of modelsToTry) {
       claudeTestedModels.push(model);
       try {
         let claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
