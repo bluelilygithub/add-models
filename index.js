@@ -224,6 +224,136 @@ app.post('/ask', async (req, res) => {
   `);
 });
 
+app.get('/models', (req, res) => {
+  res.send(`
+    <h2>Test LLM Models</h2>
+    <form method="POST" action="/test-models">
+      <label>Gemini Models (comma-separated):</label><br>
+      <input type="text" name="gemini_models" style="width: 400px;" value="models/gemini-1.5-pro-002,models/gemini-pro"><br><br>
+      <label>OpenAI Models (comma-separated):</label><br>
+      <input type="text" name="openai_models" style="width: 400px;" value="gpt-4o,gpt-4-turbo,gpt-4,gpt-3.5-turbo"><br><br>
+      <label>Claude Models (comma-separated):</label><br>
+      <input type="text" name="claude_models" style="width: 400px;" value="claude-sonnet-4-20250514,claude-opus-4,claude-3-5-sonnet-20241022,claude-3-5-haiku-20241022"><br><br>
+      <button type="submit">Test Models</button>
+    </form>
+  `);
+});
+
+app.post('/test-models', async (req, res) => {
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const openaiKey = process.env.OPENAI_API_KEY;
+  const claudeKey = process.env.CLAUDE_API_KEY;
+  const geminiModels = req.body.gemini_models.split(',').map(m => m.trim()).filter(Boolean);
+  const openaiModels = req.body.openai_models.split(',').map(m => m.trim()).filter(Boolean);
+  const claudeModels = req.body.claude_models.split(',').map(m => m.trim()).filter(Boolean);
+
+  // Test Gemini models
+  let geminiResults = [];
+  for (const model of geminiModels) {
+    if (!geminiKey) {
+      geminiResults.push({ model, success: false, error: 'No API key' });
+      continue;
+    }
+    try {
+      const geminiApi = `https://generativelanguage.googleapis.com/v1beta/${model}:generateContent?key=${geminiKey}`;
+      const geminiRes = await fetch(geminiApi, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: 'Hi' }] }]
+        })
+      });
+      if (geminiRes.ok) {
+        geminiResults.push({ model, success: true });
+      } else {
+        const data = await geminiRes.json();
+        geminiResults.push({ model, success: false, error: JSON.stringify(data) });
+      }
+    } catch (e) {
+      geminiResults.push({ model, success: false, error: e.message });
+    }
+  }
+
+  // Test OpenAI models
+  let openaiResults = [];
+  for (const model of openaiModels) {
+    if (!openaiKey) {
+      openaiResults.push({ model, success: false, error: 'No API key' });
+      continue;
+    }
+    try {
+      const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${openaiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: 'Hi' }],
+          max_tokens: 5
+        })
+      });
+      if (openaiRes.ok) {
+        openaiResults.push({ model, success: true });
+      } else {
+        const data = await openaiRes.json();
+        openaiResults.push({ model, success: false, error: JSON.stringify(data) });
+      }
+    } catch (e) {
+      openaiResults.push({ model, success: false, error: e.message });
+    }
+  }
+
+  // Test Claude models
+  let claudeResults = [];
+  for (const model of claudeModels) {
+    if (!claudeKey) {
+      claudeResults.push({ model, success: false, error: 'No API key' });
+      continue;
+    }
+    try {
+      const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': claudeKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 5,
+          messages: [{ role: 'user', content: 'Hi' }],
+        })
+      });
+      if (claudeRes.ok) {
+        claudeResults.push({ model, success: true });
+      } else {
+        const data = await claudeRes.json();
+        claudeResults.push({ model, success: false, error: JSON.stringify(data) });
+      }
+    } catch (e) {
+      claudeResults.push({ model, success: false, error: e.message });
+    }
+  }
+
+  // Render results as a table
+  function renderRow(results) {
+    return results.map(r => `<tr><td>${r.model}</td><td style="text-align:center;">${r.success ? '✔️' : '❌'}</td><td>${r.error ? `<pre style='max-width:400px;overflow-x:auto;'>${r.error}</pre>` : ''}</td></tr>`).join('');
+  }
+
+  res.send(`
+    <h2>Model Test Results</h2>
+    <h3>Gemini</h3>
+    <table border="1" cellpadding="5"><tr><th>Model</th><th>Result</th><th>Error</th></tr>${renderRow(geminiResults)}</table>
+    <h3>OpenAI</h3>
+    <table border="1" cellpadding="5"><tr><th>Model</th><th>Result</th><th>Error</th></tr>${renderRow(openaiResults)}</table>
+    <h3>Claude</h3>
+    <table border="1" cellpadding="5"><tr><th>Model</th><th>Result</th><th>Error</th></tr>${renderRow(claudeResults)}</table>
+    <br><a href="/models">Test again</a>
+  `);
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
